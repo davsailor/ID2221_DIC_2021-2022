@@ -1,0 +1,37 @@
+import scala.util.parsing.json._
+
+val string = """{"cnt":2,"list":[{"coord":{"lon":9.1895,"lat":45.4643},"sys":{"country":"IT","timezone":7200,"sunrise":1634362836,"sunset":1634402198},"weather":[{"id":801,"main":"Clouds","description":"few clouds","icon":"02d"}],"main":{"temp":287.38,"feels_like":286.69,"temp_min":284.21,"temp_max":289.82,"pressure":1017,"humidity":70},"visibility":7000,"wind":{"speed":0.45,"deg":150},"clouds":{"all":14},"dt":1634375358,"id":3173435,"name":"Milan"},{"coord":{"lon":13.9855,"lat":41.4059},"sys":{"country":"IT","timezone":7200,"sunrise":1634361409,"sunset":1634401323},"weather":[{"id":803,"main":"Clouds","description":"broken clouds","icon":"04d"}],"main":{"temp":289.33,"feels_like":288.49,"temp_min":288.66,"temp_max":291.13,"pressure":1016,"sea_level":1016,"grnd_level":1000,"humidity":57},"visibility":10000,"wind":{"speed":1.18,"deg":105},"clouds":{"all":73},"dt":1634375551,"id":3173439,"name":"Mignano Monte Lungo"}]}""".stripMargin
+
+case class RECORD(id: Int, name: String, ts: Double, lon: Double, lat: Double, temp: Double, tempfelt: Double, tempmin: Double, tempmax: Double, pressure: Double, humidity: Double, weather: String)
+
+class PARSER[T] { def unapply(a: Any): Option[T] = Some(a.asInstanceOf[T]) }
+
+object MAP extends PARSER[Map[String, Any]]
+object LIST extends PARSER[List[Any]]
+object STRING extends PARSER[String]
+object DOUBLE extends PARSER[Double]
+object INT extends PARSER[Int]
+
+val result = for {
+    Some(MAP(message)) <- List(JSON.parseFull(string))
+    LIST(relevations) = message("list")
+    MAP(relevation) <- relevations
+    STRING(cityName) = relevation("name")
+    INT(id) = relevation("id")
+    DOUBLE(ts) = relevation("dt")
+    MAP(coords) = relevation("coord")
+    DOUBLE(longitude) = coords("lon")
+    DOUBLE(latitude) = coords("lat")
+    MAP(main) = relevation("main")
+    DOUBLE(temp) = main("temp")
+    DOUBLE(tempfelt) = main("feels_like")
+    DOUBLE(tempmin) = main("temp_min")
+    DOUBLE(tempmax) = main("temp_max")
+    DOUBLE(pressure) = main("pressure")
+    DOUBLE(humidity) = main("humidity")
+    LIST(weatherlist) = relevation("weather")
+    MAP(weathermap) <- weatherlist
+    STRING(weather) = weathermap("main")
+} yield {
+    RECORD(id, cityName, ts, longitude, latitude, temp, tempfelt, tempmin, tempmax, pressure, humidity, weather)
+}

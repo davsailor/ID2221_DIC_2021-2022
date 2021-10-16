@@ -1,2 +1,7 @@
 *.class
 *.log
+
+### SBT ###
+project/
+target/
+build.properties
