@@ -18,7 +18,7 @@ import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
 /* define the case class of the parsed data */
-case class Record(id:Double, name: String, ts: Double, lon: Double, lat: Double, temp: Double, tempfelt: Double, tempmin: Double, tempmax: Double, pressure: Double, humidity: Double, weather: String)
+case class Record(name: String, ts: Double, lon: Double, lat: Double, temp: Double, tempfelt: Double, pressure: Double, humidity: Double, weather: String)
 
 /* define class and objects to parse the data coming from the API call */
 class PARSER[T] { def unapply(a: Any): Option[T] = Some(a.asInstanceOf[T]) }
@@ -100,7 +100,6 @@ object ScalaWeatherProducer extends App {
 			LIST(relevations) = message("list")
 			MAP(relevation) <- relevations
 			STRING(cityName) = relevation("name")
-			DOUBLE(cityId) = relevation("id")
 			DOUBLE(ts) = relevation("dt")
 			MAP(coords) = relevation("coord")
 			DOUBLE(longitude) = coords("lon")
@@ -108,8 +107,6 @@ object ScalaWeatherProducer extends App {
 			MAP(main) = relevation("main")
 			DOUBLE(temp) = main("temp")
 			DOUBLE(tempfelt) = main("feels_like")
-			DOUBLE(tempmin) = main("temp_min")
-			DOUBLE(tempmax) = main("temp_max")
 			DOUBLE(pressure) = main("pressure")
 			DOUBLE(humidity) = main("humidity")
 			LIST(weatherlist) = relevation("weather")
@@ -119,7 +116,7 @@ object ScalaWeatherProducer extends App {
 		} yield {
 			
 			/* gathering the parsed values for a datapoint into an organized structure */
-			Record(cityId, cityName, ts, longitude, latitude, temp, tempfelt, tempmin, tempmax, pressure, humidity, weather)
+			Record(cityName, ts, longitude, latitude, temp, tempfelt, pressure, humidity, weather)
 		}
 		
 		/* returning all the datapoints correctly parsed */
@@ -178,7 +175,6 @@ object ScalaWeatherProducer extends App {
 		/* close the producer */
 		producer.close()
 	}
-	
 	
 	/* calling the main function */
 	main()
