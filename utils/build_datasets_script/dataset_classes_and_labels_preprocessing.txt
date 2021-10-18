@@ -1,0 +1,25 @@
+### INITIAL CLASSES ###
+- Clear
+- Clouds
+- Mist
+- Fog
+- Haze
+- Smoke
+- Drizzle
+- Rain
+- Thunderstorm
+- Snow
+
+### PREPROCESSING ###
+- change Smoke ---> Fog
+- change Haze ---> Fog
+- change Mist ---> Fog
+- change Drizzle ---> Rain (?)
+- change Thunderstorm ---> Rain (?)
+
+### FINAL CLASSES ###
+- Clear
+- Clouds
+- Fog
+- Rain
+- Snow
