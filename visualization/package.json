@@ -1,0 +1,39 @@
+{
+	"name": "simple_italian_weather_forecast_server",
+	"version": "1.0.0",
+	"description": "This is a simple implementation of a distributed messagins system which receives messages from a weather API, provide a weather forecast and then visualize the current situation against the forecast in three hours",
+	"main": "app.js",
+	"type": "module",
+	
+	"exports": {
+		"./"
+	}, 
+	
+	"dependencies": {
+		"dotenv": "^10.0.0",
+		"express": "^4.17.1",
+		"http": "0.0.1-security",
+		"kafka-node": "^5.0.0",
+		"ws": "^8.2.3"
+	},
+	
+	"devDependencies": {},
+	
+	"scripts": {
+		"start": "node --experimental-json-modules app.js",
+	},
+	
+	"author": "",
+	"contributors": [
+		{
+			"name": "Davide Marinaro",
+			"email": "davide.marinaro@hotmail.it",
+			"url": "https://www.linkedin.com/in/ing-davide-marinaro"
+		},
+		{
+			"name": "Luca Colasanti",
+			"email": "lucacolasanti98@gmail.com",
+			"url": "https://www.linkedin.com/in/luca-colasanti-97222a174"
+		}],
+	"license": "MIT"
+}

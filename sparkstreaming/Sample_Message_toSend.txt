@@ -1,0 +1,34 @@
+### FORMAT OF THE MESSAGES THAT THE CONSUMER HAS TO SEND TO THE KAFKA NODE IN JS ###
+
+[
+	{
+		"coordinates": {
+			"lon": 12345,
+			"lat": 12345
+		},
+		"cweather": "WEATHER_CLASS",
+		"fweather": "WEATHER_CLASS",
+		"ctemp": KELVIN_TEMP,
+		"ftemp": KELVIN_TEMP
+	},
+	{
+		"coordinates": {
+			"lon": 12345,
+			"lat": 12345
+		},
+		"cweather": "WEATHER_CLASS",
+		"fweather": "WEATHER_CLASS",
+		"ctemp": KELVIN_TEMP,
+		"ftemp": KELVIN_TEMP
+	},
+	{
+		"coordinates": {
+			"lon": 12345,
+			"lat": 12345
+		},
+		"cweather": "WEATHER_CLASS",
+		"fweather": "WEATHER_CLASS",
+		"ctemp": KELVIN_TEMP,
+		"ftemp": KELVIN_TEMP
+	}
+]
