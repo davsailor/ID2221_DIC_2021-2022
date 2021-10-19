@@ -29,7 +29,7 @@ kafkaClient.on("connect", (error) => {
 											console.log("cannot establish connection");
 											throw error;
 										} else {
-											console.log("connected");
+											console.log("kafka client is now connected");
 										}
 									});
 
