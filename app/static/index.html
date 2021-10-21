@@ -2,6 +2,7 @@
 <html lang="en">
 	<head>
 		<title>Italy Weather Forecast</title>
+		<link rel="shortcut icon" href="#">
 		<meta charset="UTF-8">
 		<script src="https://d3js.org/d3.v5.js"></script>
 		<script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
@@ -114,7 +115,7 @@
 				<svg id="italy_map_current", width="700", height="650"></svg>
 			</div>
 
-			<div id="current_div", class="intermediateColumn">
+			<div id="legend", class="intermediateColumn">
 				<h4></h4>
 				<h2>Legend</h2>
 				<h3>Clear</h3>
@@ -186,338 +187,327 @@
 				<h2>Italian Weather Forecast in 3 hours</h2>
 				<svg id="italy_map_forecast", width="700", height="650"></svg>
 			</div>
-
-			<script>
-				/* select the width and height of the svg where to draw the maps */
-				var svg = d3.select("#italy_map_current"),
-					width = +svg.attr("width"),
-					height = +svg.attr("height");
+		</div>
+		<script>
+			/* select the width and height of the svg where to draw the maps */
+			var svg = d3.select("#italy_map_current"),
+				width = +svg.attr("width"),
+				height = +svg.attr("height");
+			
+			/* first guess of the parameters of the projection */
+			var scale = 1;
+			var offset = [0, 0];
+			var projection = d3.geoMercator()
+				.scale(scale)
+				.translate(offset);
+			var pathBuilder = d3.geoPath(projection);
+			
+			/* creating the groups for current and forecast visualizations */
+			const cgroup = d3.select("#italy_map_current").append("g");
+			const fgroup = d3.select("#italy_map_forecast").append("g");
+			const ccgroup = d3.select("#italy_map_current").append("g");
+			const cfgroup = d3.select("#italy_map_forecast").append("g");
+			
+			/* get the geoData to draw the maps */
+			d3.json("https://raw.githubusercontent.com/openpolis/geojson-italy/master/geojson/limits_IT_regions.geojson")
+				.then(function(geoData) {
+					
+					/* adapt the size of the map */
+					let mapBounds = pathBuilder.bounds(geoData);
+					let horizontalScale = 0.95 / ((mapBounds[1][0] - mapBounds[0][0]) / width);
+					let verticalScale = 0.95 / ((mapBounds[1][1] - mapBounds[0][1]) / height);
+					let newScale = (horizontalScale < verticalScale) ? horizontalScale : verticalScale;
+					let newOffset = [(width - newScale*(mapBounds[0][0] + mapBounds[1][0]))/2, (height - newScale*(mapBounds[0][1] + mapBounds[1][1]))/2]
+					
+					/* redefine projection */
+					projection
+						.scale(newScale)
+						.translate(newOffset);
+					
+					pathBuider = d3.geoPath(projection);
+					
+					/* draw the map of current weather */
+					cgroup.selectAll("path")
+						.data(geoData.features)
+						.enter()
+						.append("path")
+						.attr("d", function(feature) {
+							return pathBuilder(feature);
+						});
+					
+					/* draw the map of weather forecast */
+					fgroup.selectAll("path")
+						.data(geoData.features)
+						.enter()
+						.append("path")
+						.attr("d", function(feature) {
+							return pathBuilder(feature);
+						});
+				})
+				.catch(function(error) {
+					/* detect error and print it in the console log */
+					console.log("error happened: " + error);
+				});
+			
+			/* function to draw the weather relevations and forecasts */
+			let draw = (datapoints) => {
 				
-				/* first guess of the parameters of the projection */
-				var scale = 1;
-				var offset = [0, 0];
-				var projection = d3.geoMercator()
-					.scale(scale)
-					.translate(offset);
-				var pathBuilder = d3.geoPath(projection);
+				console.log("TRYING TO DRAW");
 				
-				/* creating the groups for current and forecast visualizations */
-				const cgroup = d3.select("#italy_map_current").append("g");
-				const fgroup = d3.select("#italy_map_forecast").append("g");
+				/* parse the temperatures of current and forecast weather to celsius */
+				var ctc = datapoints.ctemp - 273.15;
+				var ftc = datapoints.ftemp - 273.15;
 				
-				/* get the geoData to draw the maps */
-				d3.json("https://raw.githubusercontent.com/openpolis/geojson-italy/master/geojson/limits_IT_regions.geojson")
-					.then(function(geoData) {
-						
-						/* adapt the size of the map */
-						let mapBounds = pathBuilder.bounds(geoData);
-						let horizontalScale = 0.95 / ((mapBounds[1][0] - mapBounds[0][0]) / width);
-						let verticalScale = 0.95 / ((mapBounds[1][1] - mapBounds[0][1]) / height);
-						let newScale = (horizontalScale < verticalScale) ? horizontalScale : verticalScale;
-						let newOffset = [(width - newScale*(mapBounds[0][0] + mapBounds[1][0]))/2, (height - newScale*(mapBounds[0][1] + mapBounds[1][1]))/2]
-						
-						/* redefine projection */
-						projection
-							.scale(newScale)
-							.translate(newOffset);
-						
-						pathBuider = d3.geoPath(projection);
-						
-						/* draw the map of current weather */
-						cgroup.selectAll("path")
-							.data(geoData.features)
-							.enter()
-							.append("path")
-							.attr("d", function(feature) {
-								return pathBuilder(feature);
-							});
-						
-						/* draw the map of weather forecast */
-						fgroup.selectAll("path")
-							.data(geoData.features)
-							.enter()
-							.append("path")
-							.attr("d", function(feature) {
-								return pathBuilder(feature);
-							});
-					})
-					.catch(function(error) {
-						/* detect error and print it in the console log */
-						console.log("error happened: " + error);
-					});
+				/* initialize the colors to default ones */
+				var ccolor = "#ffffff";
+				var fcolor = "#ffffff";
 				
-				/* function to draw the weather relevations and forecasts */
-				let draw = (datapoints) => {
-					
-					/* create the circles in both current and forecast groups */
-					var ccircle = cgroup.selectAll("circle")
-										.data(datapoints, (d) => d.coordinates.lon + d.coordinates.lat);
-					
-					var fcircle = fgroup.selectAll("circle")
-										.data(datapoints, (d) => d.coordinates.lon + d.coordinates.lat);
-
-					/* create the projection of the circles */
-					var circleprojection = projection([datapoints.coordinates.lon, datapoints.coordinates.lat])
-					
-					/* parse the temperatures of current and forecast weather to celsius */
-					var ctc = datapoints.ctemp - 273.15;
-					var ftc = datapoints.ftemp - 273.15;
-					
-					/* initialize the colors to default ones */
-					var ccolor = "ffffff";
-					var fcolor = "ffffff";
-					
-					/* big switch case to compute the correct color for current weather circle */
-					switch(datapoints.cweather) {
-						case "Clear":
-							switch(true) {
-								case (ctc<0):
-									var ccolor = "#ffff00";
-									break;
-								case (ctc>=0 && ctc<10):
-									var ccolor = "#ffee00";
-									break;
-								case (ctc>=10 && ctc<20):
-									var ccolor = "#ffdd00";
-									break;
-								case (ctc>=20 && ctc<30):
-									var ccolor = "#ffcc00";
-									break;
-								case (ctc>=30):
-									var ccolor = "#ffbb00";
-									break;
-							}
-							break;
-						case "Cloud":
-							switch(true) {
-								case (ctc<0):
-									var ccolor = "#d2d2d2";
-									break;
-								case (ctc>=0 && ctc<10):
-									var ccolor = "#bababa";
-									break;
-								case (ctc>=10 && ctc<20):
-									var ccolor = "#a5a5a5";
-									break;
-								case (ctc>=20 && ctc<25):
-									var ccolor = "#939393";
-									break;
-								case (ctc>=25):
-									var ccolor = "#787878";
-									break;
-							}
-							break;
-						case "Fog":
-							switch(true) {
-								case (ctc<0):
-									var ccolor = "#efebe9";
-									break;
-								case (ctc>=0 && ctc<5):
-									var ccolor = "#d7ccc8";
-									break;
-								case (ctc>=5 && ctc<10):
-									var ccolor = "#bcaaa4";
-									break;
-								case (ctc>=10 && ctc<15):
-									var ccolor = "#a1887f";
-									break;
-								case (ctc>=15):
-									var ccolor = "#8d6e63";
-									break;
-							}
-							break;
-						case "Rain":
-							switch(true) {
-								case (ctc<5):
-									var ccolor = "#76cfff";
-									break;
-								case (ctc>=5 && ctc<10):
-									var ccolor = "#00bfff";
-									break;
-								case (ctc>=10 && ctc<15):
-									var ccolor = "#00a8ff";
-									break;
-								case (ctc>=15 && ctc<25):
-									var ccolor = "#0091ff";
-									break;
-								case (ctc>=25):
-									var ccolor = "#0079ff";
-									break;
-							}
-							break;
-						case "Snow":
-							switch(true) {
-								case (ctc<-10):
-									var ccolor = "#e0ffff";
-									break;
-								case (ctc>=-10 && ctc<-5):
-									var ccolor = "#c0ffff";
-									break;
-								case (ctc>=-5 && ctc<0):
-									var ccolor = "#80ffff";
-									break;
-								case (ctc>=0 && ctc<5):
-									var ccolor = "#00ffff";
-									break;
-								case (ctc>=5):
-									var ccolor = "#4feeee";
-									break;
-							}
-							break;
-						default:
-							var ccolor = "ffffff";						
-					}
-					
-					/* big switch case to compute the correct color for forecast weather circle */
-					switch(datapoints.fweather) {
-						case "Clear":
-							switch(true) {
-								case (ftc<0):
-									var fcolor = "#ffff00";
-									break;
-								case (ftc>=0 && ftc<10):
-									var fcolor = "#ffee00";
-									break;
-								case (ftc>=10 && ftc<20):
-									var fcolor = "#ffdd00";
-									break;
-								case (ftc>=20 && ftc<30):
-									var fcolor = "#ffcc00";
-									break;
-								case (ftc>=30):
-									var fcolor = "#ffbb00";
-									break;
-							}
-							break;
-						case "Cloud":
-							switch(true) {
-								case (ftc<0):
-									var fcolor = "#d2d2d2";
-									break;
-								case (ftc>=0 && ftc<10):
-									var fcolor = "#bababa";
-									break;
-								case (ftc>=10 && ftc<20):
-									var fcolor = "#a5a5a5";
-									break;
-								case (ftc>=20 && ftc<25):
-									var fcolor = "#939393";
-									break;
-								case (ftc>=25):
-									var fcolor = "#787878";
-									break;
-							}
-							break;
-						case "Fog":
-							switch(true) {
-								case (ftc<0):
-									var fcolor = "#efebe9";
-									break;
-								case (ftc>=0 && ftc<5):
-									var fcolor = "#d7ccc8";
-									break;
-								case (ftc>=5 && ftc<10):
-									var fcolor = "#bcaaa4";
-									break;
-								case (ftc>=10 && ftc<15):
-									var fcolor = "#a1887f";
-									break;
-								case (ftc>=15):
-									var fcolor = "#8d6e63";
-									break;
-							}
-							break;
-						case "Rain":
-							switch(true) {
-								case (ftc<5):
-									var fcolor = "#76cfff";
-									break;
-								case (ftc>=5 && ftc<10):
-									var fcolor = "#00bfff";
-									break;
-								case (ftc>=10 && ftc<15):
-									var fcolor = "#00a8ff";
-									break;
-								case (ftc>=15 && ftc<25):
-									var fcolor = "#0091ff";
-									break;
-								case (ftc>=25):
-									var fcolor = "#0079ff";
-									break;
-							}
-							break;
-						case "Snow":
-							switch(true) {
-								case (ftc<-10):
-									var fcolor = "#e0ffff";
-									break;
-								case (ftc>=-10 && ftc<-5):
-									var fcolor = "#c0ffff";
-									break;
-								case (ftc>=-5 && ftc<0):
-									var fcolor = "#80ffff";
-									break;
-								case (ftc>=0 && ftc<5):
-									var fcolor = "#00ffff";
-									break;
-								case (ftc>=5):
-									var fcolor = "#4feeee";
-									break;
-							}
-							break;
-						default:
-							var fcolor = "ffffff";						
-					}
-					
-					/* create new current and forecast circles if needed */
-					ccircle.enter()
-							.append("circle")
-							.attr("cx", circleprojection[0])
-							.attr("cy", circleprojection[1])
-							.attr("r", 1)
-							.attr("fill", ccolor);
-					
-					fcircle.enter()
-							.append("circle")
-							.attr("cx", circleprojection[0])
-							.attr("cy", circleprojection[1])
-							.attr("r", 1)
-							.attr("fill", fcolor);					
-					
-					/* update existent current and forecast circles if needed */
-					ccircle.transition()
-							.duration(1000)
-							.attr("cx", circleprojection[0]+0.1)
-							.attr("cy", circleprojection[1]+0.1)
-							.attr("fill", ccolor);
-					
-					fcircle.transition()
-							.duration(1000)
-							.attr("cx", circleprojection[0]+0.1)
-							.attr("cy", circleprojection[1]+0.1)
-							.attr("fill", fcolor);
+				/* big switch case to compute the correct color for current weather circle */
+				switch(datapoints.cweather) {
+					case "Clear":
+						switch(true) {
+							case (ctc<0):
+								var ccolor = "#ffff00";
+								break;
+							case (ctc>=0 && ctc<10):
+								var ccolor = "#ffee00";
+								break;
+							case (ctc>=10 && ctc<20):
+								var ccolor = "#ffdd00";
+								break;
+							case (ctc>=20 && ctc<30):
+								var ccolor = "#ffcc00";
+								break;
+							case (ctc>=30):
+								var ccolor = "#ffbb00";
+								break;
+						}
+						break;
+					case "Clouds":
+						switch(true) {
+							case (ctc<0):
+								var ccolor = "#d2d2d2";
+								break;
+							case (ctc>=0 && ctc<10):
+								var ccolor = "#bababa";
+								break;
+							case (ctc>=10 && ctc<20):
+								var ccolor = "#a5a5a5";
+								break;
+							case (ctc>=20 && ctc<25):
+								var ccolor = "#939393";
+								break;
+							case (ctc>=25):
+								var ccolor = "#787878";
+								break;
+						}
+						break;
+					case "Fog":
+						switch(true) {
+							case (ctc<0):
+								var ccolor = "#efebe9";
+								break;
+							case (ctc>=0 && ctc<5):
+								var ccolor = "#d7ccc8";
+								break;
+							case (ctc>=5 && ctc<10):
+								var ccolor = "#bcaaa4";
+								break;
+							case (ctc>=10 && ctc<15):
+								var ccolor = "#a1887f";
+								break;
+							case (ctc>=15):
+								var ccolor = "#8d6e63";
+								break;
+						}
+						break;
+					case "Rain":
+						switch(true) {
+							case (ctc<5):
+								var ccolor = "#76cfff";
+								break;
+							case (ctc>=5 && ctc<10):
+								var ccolor = "#00bfff";
+								break;
+							case (ctc>=10 && ctc<15):
+								var ccolor = "#00a8ff";
+								break;
+							case (ctc>=15 && ctc<25):
+								var ccolor = "#0091ff";
+								break;
+							case (ctc>=25):
+								var ccolor = "#0079ff";
+								break;
+						}
+						break;
+					case "Snow":
+						switch(true) {
+							case (ctc<-10):
+								var ccolor = "#e0ffff";
+								break;
+							case (ctc>=-10 && ctc<-5):
+								var ccolor = "#c0ffff";
+								break;
+							case (ctc>=-5 && ctc<0):
+								var ccolor = "#80ffff";
+								break;
+							case (ctc>=0 && ctc<5):
+								var ccolor = "#00ffff";
+								break;
+							case (ctc>=5):
+								var ccolor = "#4feeee";
+								break;
+						}
+						break;
+					default:
+						var ccolor = "#ffffff";						
 				}
 				
-				/* create the socket where to receive the messages */
-				const socket = new WebSocket("ws://localhost:14520");
+				/* big switch case to compute the correct color for forecast weather circle */
+				switch(datapoints.fweather) {
+					case "Clear":
+						switch(true) {
+							case (ftc<0):
+								var fcolor = "#ffff00";
+								break;
+							case (ftc>=0 && ftc<10):
+								var fcolor = "#ffee00";
+								break;
+							case (ftc>=10 && ftc<20):
+								var fcolor = "#ffdd00";
+								break;
+							case (ftc>=20 && ftc<30):
+								var fcolor = "#ffcc00";
+								break;
+							case (ftc>=30):
+								var fcolor = "#ffbb00";
+								break;
+						}
+						break;
+					case "Clouds":
+						switch(true) {
+							case (ftc<0):
+								var fcolor = "#d2d2d2";
+								break;
+							case (ftc>=0 && ftc<10):
+								var fcolor = "#bababa";
+								break;
+							case (ftc>=10 && ftc<20):
+								var fcolor = "#a5a5a5";
+								break;
+							case (ftc>=20 && ftc<25):
+								var fcolor = "#939393";
+								break;
+							case (ftc>=25):
+								var fcolor = "#787878";
+								break;
+						}
+						break;
+					case "Fog":
+						switch(true) {
+							case (ftc<0):
+								var fcolor = "#efebe9";
+								break;
+							case (ftc>=0 && ftc<5):
+								var fcolor = "#d7ccc8";
+								break;
+							case (ftc>=5 && ftc<10):
+								var fcolor = "#bcaaa4";
+								break;
+							case (ftc>=10 && ftc<15):
+								var fcolor = "#a1887f";
+								break;
+							case (ftc>=15):
+								var fcolor = "#8d6e63";
+								break;
+						}
+						break;
+					case "Rain":
+						switch(true) {
+							case (ftc<5):
+								var fcolor = "#76cfff";
+								break;
+							case (ftc>=5 && ftc<10):
+								var fcolor = "#00bfff";
+								break;
+							case (ftc>=10 && ftc<15):
+								var fcolor = "#00a8ff";
+								break;
+							case (ftc>=15 && ftc<25):
+								var fcolor = "#0091ff";
+								break;
+							case (ftc>=25):
+								var fcolor = "#0079ff";
+								break;
+						}
+						break;
+					case "Snow":
+						switch(true) {
+							case (ftc<-10):
+								var fcolor = "#e0ffff";
+								break;
+							case (ftc>=-10 && ftc<-5):
+								var fcolor = "#c0ffff";
+								break;
+							case (ftc>=-5 && ftc<0):
+								var fcolor = "#80ffff";
+								break;
+							case (ftc>=0 && ftc<5):
+								var fcolor = "#00ffff";
+								break;
+							case (ftc>=5):
+								var fcolor = "#4feeee";
+								break;
+						}
+						break;
+					default:
+						var fcolor = "#ffffff";						
+				}
+
+				ccgroup.append("circle")
+						.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
+						.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
+						.attr("r", 7)
+						.attr("fill", ccolor)
+						.attr("opacity", 0.5)
+						.transition().duration(1000);
 				
-				/* define the steps to follow when new message is received */
-				socket.onmessage = function(event) {
-					console.log("new message");
-					try {
-						/* parse the received data */
-						let data = JSON.parse(event.data);
-						
-						/* call the function to draw the data */
-						draw(data);
-					} catch(e) {
-						/* detect and output the error for debugging purposes */
-						console.log("received data: " + event.data);
-						console.log(e);
-						return;
-					}
-				};
-			</script>
-		</div>
+				cfgroup.append("circle")
+						.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
+						.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
+						.attr("r", 7)
+						.attr("fill", fcolor)
+						.attr("opacity", 0.5)
+						.transition().duration(1000);
+				
+				console.log("WE DREW THE CIRCLE");
+			}
+			
+			/* create the socket where to receive the messages */
+			const socket = new WebSocket("ws://localhost:14520/ws");
+			
+			/* say hello to the server */
+			socket.onopen = function() {
+				console.log("connected");
+				socket.send("Hi!");
+			}
+			
+			/* define the steps to follow when new message is received */
+			socket.onmessage = function(event) {
+				console.log("new message");
+				try {
+					/* parse the received data */
+					let data = JSON.parse(event.data);
+					
+					/* call the function to draw the data */
+					draw(data);
+				} catch(e) {
+					/* detect and output the error for debugging purposes */
+					console.log("received data: " + event.data);
+					console.log(e);
+					return;
+				}
+			};
+		</script>
 	</body>
 </html>

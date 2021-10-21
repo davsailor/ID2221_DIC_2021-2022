@@ -2,33 +2,30 @@
 
 [
 	{
-		"coordinates": {
-			"lon": 12345,
-			"lat": 12345
-		},
+		"lon": 12345,
+		"lat": 12345,
 		"cweather": "WEATHER_CLASS",
 		"fweather": "WEATHER_CLASS",
 		"ctemp": KELVIN_TEMP,
 		"ftemp": KELVIN_TEMP
 	},
 	{
-		"coordinates": {
-			"lon": 12345,
-			"lat": 12345
-		},
+		"lon": 12345,
+		"lat": 12345,
 		"cweather": "WEATHER_CLASS",
 		"fweather": "WEATHER_CLASS",
 		"ctemp": KELVIN_TEMP,
 		"ftemp": KELVIN_TEMP
 	},
 	{
-		"coordinates": {
-			"lon": 12345,
-			"lat": 12345
-		},
+		"lon": 12345,
+		"lat": 12345,
 		"cweather": "WEATHER_CLASS",
 		"fweather": "WEATHER_CLASS",
 		"ctemp": KELVIN_TEMP,
 		"ftemp": KELVIN_TEMP
-	}
+	},
 ]
+
+
+"""{"lon": 12345, "lat": 12345, "cweather": "WEATHER_CLASS", "fweather": "WEATHER_CLASS", "ctemp": KELVIN_TEMP, "ftemp": KELVIN_TEMP}"""

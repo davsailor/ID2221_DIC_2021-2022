@@ -26,7 +26,7 @@ object MAP extends PARSER[Map[String, Any]]
 object LIST extends PARSER[List[Any]]
 object STRING extends PARSER[String]
 object DOUBLE extends PARSER[Double]
-
+	
 /* define object */
 object ScalaWeatherProducer extends App {
 	
@@ -70,7 +70,7 @@ object ScalaWeatherProducer extends App {
 	def initProducer(brokers: String): KafkaProducer[String, String] = {
 		val props = new Properties()
 		props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers)
-		props.put(ProducerConfig.CLIENT_ID_CONFIG, "ScalaProducerExample")
+		props.put(ProducerConfig.CLIENT_ID_CONFIG, "ScalaWeatherProducer")
 		props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer")
 		props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer")
 		new KafkaProducer[String, String](props)
@@ -122,6 +122,25 @@ object ScalaWeatherProducer extends App {
 		/* returning all the datapoints correctly parsed */
 		parsedData
 	}
+	
+	
+	/*
+	** function to build a message with the relevant data for the consumer
+	** in json format, to simplify the parsing
+	** Record(name, ts, lon, lat, temp, tempfelt, pressure, humidity, weather)
+	*/
+	def buildMessage(data: Record): String = {
+		val message = """{"name":""".stripMargin + data.name.toString +
+					  ""","ts":""".stripMargin + data.ts.toString +
+					  ""","lon":""".stripMargin + data.lon.toString +
+					  ""","lat":""".stripMargin + data.lat.toString +
+					  ""","temp":""".stripMargin + data.temp.toString +
+					  ""","tempfelt":""".stripMargin + data.tempfelt.toString +
+					  ""","pressure": """.stripMargin + data.pressure.toString +
+					  ""","humidity":""".stripMargin + data.humidity.toString +
+					  ""","weather":""".stripMargin + data.weather.toString + "}"
+		message
+	}
 
 
 	/* define main function */
@@ -156,7 +175,7 @@ object ScalaWeatherProducer extends App {
 				for(datapoint <- data) {
 
 					/* create the message */
-					val message = new ProducerRecord[String, String](TOPIC, null, datapoint.toString)
+					val message = new ProducerRecord[String, String](TOPIC, null, buildMessage(datapoint))
 
 					/* send the message */
 					producer.send(message)
