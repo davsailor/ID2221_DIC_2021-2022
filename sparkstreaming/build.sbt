@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" % "spark-streaming-kafka-0-8_2.11" % "2.2.1",
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2",
   "org.apache.logging.log4j" % "log4j-core" % "2.7",
-  ("com.datastax.spark" %% "spark-cassandra-connector" % "2.0.2").exclude("io.netty", "netty-handler"),
-  ("com.datastax.cassandra" % "cassandra-driver-core" % "3.0.0").exclude("io.netty", "netty-handler")
+  ("com.datastax.spark" %% "spark-cassandra-connector" % "2.4.0").exclude("io.netty", "netty-handler"),
+  ("com.datastax.cassandra" % "cassandra-driver-core" % "3.1.0").exclude("io.netty", "netty-handler")
 )
 
