@@ -5,7 +5,6 @@
 project/
 target/
 build.properties
-tmp/
 
 ### NODEJS NPM ###
 node_modules/
