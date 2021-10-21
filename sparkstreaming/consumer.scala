@@ -27,9 +27,12 @@ import java.util.{Date, Properties}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, ProducerConfig}
 import scala.util.Random
 import org.apache.spark.sql.cassandra._
+import com.datastax.driver.core.{Cluster, Session}
+import com.datastax.spark.connector.SomeColumns
 import com.datastax.spark.connector._
-import com.datastax.driver.core.{Session, Cluster, Host, Metadata}
 import com.datastax.spark.connector.streaming._
+import com.datastax.spark.connector.cql.CassandraConnector
+import com.datastax.spark.connector.japi.CassandraJavaUtil._
 
 
 /* define the case class of the parsed data */
@@ -49,6 +52,8 @@ object ScalaWeatherForecast extends App {
 	val BROKER_URL = "localhost:9092"
 	val RECEIVER_TOPIC = "weather"
 	val SENDER_TOPIC = "forecast"
+	val CASSANDRA_KS = "weatherks"
+	val CASSANDRA_TB = "relevationstb"
 
 	/* change log properties */
 	Logger.getLogger("org").setLevel(Level.OFF)
@@ -68,7 +73,7 @@ object ScalaWeatherForecast extends App {
 	def initSession(): SparkSession = {
 		val ss = SparkSession.builder()
 					.appName("WeatherForecast")
-					.config("spark.cassandra.connection.host", "cassandra")
+					.config("spark.cassandra.connection.host", "127.0.0.1")
 		            .config("spark.cassandra.connection.port", "9042")
 					.master("local[2]")
 					.getOrCreate()
@@ -123,16 +128,37 @@ object ScalaWeatherForecast extends App {
 	def initCassandra(): Session = {
 		val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
 		val cs = cluster.connect()
-		cs.execute("""CREATE KEYSPACE IF NOT EXISTS "weather" WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };""".stripMargin)
-		cs.execute("""CREATE TABLE IF NOT EXISTS weather.relevations (name string, ts double, lon double, lat double, temp double, tempfelt double, pressure double, humidity double, weather string, PRIMARY KEY((name, ts)));""".stripMargin)
+		val ks_query = new StringBuilder("CREATE KEYSPACE ")
+							.append(CASSANDRA_KS)
+							.append(" WITH replication={'class':'SimpleStrategy','replication_factor':1};")
+		try {
+			cs.execute(ks_query.toString)
+		} catch {
+			case x: com.datastax.driver.core.exceptions.AlreadyExistsException => {
+				print("Keyspace " + CASSANDRA_KS + " already exists!")
+			}
+		}
+		val use_ks_query = new StringBuilder("USE ").append(CASSANDRA_KS)
+		val tb_query = new StringBuilder("CREATE TABLE ")
+							.append(CASSANDRA_TB)
+							.append(" (name text, ts double, lon double, lat double, temp double, tempfelt double, pressure double, humidity double, weather text, PRIMARY KEY((name, ts)));")
+		val session = cluster.connect(CASSANDRA_KS)
+		try {
+			cs.execute(use_ks_query.toString)
+			cs.execute(tb_query.toString)
+		} catch {
+			case x: com.datastax.driver.core.exceptions.AlreadyExistsException => {
+				print("Table " + CASSANDRA_KS + "." + CASSANDRA_TB + " already exists!")
+			}
+		}
 		cs
 	}
 	
 	/* function to save the RDD to cassandra */
 	def storeToCassandra(rdd: RDD[(String, String)]): Unit = {
 		val records = rdd.map(w => parser(w._2))
-						 .map(r => Record(r.name, r.ts, r.lon, r.lat, r.temp, r.tempfelt, r.pressure, r.humidity, r.weather));
-		records.saveToCassandra("relevations_keyspace", "weather_table", SomeColumns("name", "ts", "lon", "lat", "temp", "tempfelt", "pressure", "humidity", "weather"))
+						 .map(r => (r.name, r.ts, r.lon, r.lat, r.temp, r.tempfelt, r.pressure, r.humidity, r.weather));
+		records.saveToCassandra(CASSANDRA_KS, CASSANDRA_TB, SomeColumns("name", "ts", "lon", "lat", "temp", "tempfelt", "pressure", "humidity", "weather"))
 	}
 	
 	/* TODO:function to predict stuff
