@@ -463,22 +463,32 @@
 					default:
 						var fcolor = "#ffffff";						
 				}
-
-				ccgroup.append("circle")
-						.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
-						.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
-						.attr("r", 7)
-						.attr("fill", ccolor)
-						.attr("opacity", 0.5)
-						.transition().duration(1000);
 				
-				cfgroup.append("circle")
-						.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
-						.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
-						.attr("r", 7)
-						.attr("fill", fcolor)
-						.attr("opacity", 0.5)
-						.transition().duration(1000);
+				var ccircle = ccgroup.append("circle");
+				ccircle.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
+					.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
+					.attr("r", 7)
+					.attr("fill", ccolor)
+					.attr("opacity", 0.5)
+					.transition().duration(1000);
+				
+				setTimeout(function() {
+					console.log("removing old elements");
+					ccircle.remove();
+				}, 90000);
+				
+				var fcircle = cfgroup.append("circle");
+				fcircle.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
+					.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
+					.attr("r", 7)
+					.attr("fill", fcolor)
+					.attr("opacity", 0.5)
+					.transition().duration(1000);
+				
+				setTimeout(function() {
+					console.log("removing old elements");
+					fcircle.remove();
+				}, 90000);
 				
 				console.log("WE DREW THE CIRCLE");
 			}
