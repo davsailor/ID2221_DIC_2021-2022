@@ -99,7 +99,7 @@
 			
 			.my-legend a {
 				color: #777;
-				}
+			}
 			
 		</style>
 	</head>
@@ -469,8 +469,7 @@
 					.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
 					.attr("r", 7)
 					.attr("fill", ccolor)
-					.attr("opacity", 0.5)
-					.transition().duration(1000);
+					.attr("opacity", 0.5);
 				
 				setTimeout(function() {
 					console.log("removing old elements");
@@ -482,8 +481,7 @@
 					.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
 					.attr("r", 7)
 					.attr("fill", fcolor)
-					.attr("opacity", 0.5)
-					.transition().duration(1000);
+					.attr("opacity", 0.5);
 				
 				setTimeout(function() {
 					console.log("removing old elements");

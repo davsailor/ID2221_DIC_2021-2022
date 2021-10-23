@@ -184,7 +184,7 @@ object ScalaWeatherProducer extends App {
 					print(message + "\n")
 					
 					/* simulate an intermittent stream of data with a random delay */
-					Thread.sleep(Random.nextInt(MAX_DELAY))
+					//Thread.sleep(Random.nextInt(MAX_DELAY))
 				}
 				/* insert a pause to respect the free usage constraint of the API */
 				Thread.sleep(1000)

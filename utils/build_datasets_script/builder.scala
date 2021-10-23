@@ -56,7 +56,7 @@ object ScalaWeatherProducer extends App {
 		/* returning all the datapoints correctly parsed */
 		val spark = SparkSession.builder().master("local").getOrCreate()
 		import spark.implicits._
-		parsedData.toDS
+		parsedData.toDF
 	}
 
 
@@ -68,7 +68,7 @@ object ScalaWeatherProducer extends App {
 		for(city <- cities) {
 			
 			val input = "./datasets/"+city+".json"
-			val output = "./parsed_datasets/0_init/"+city+".json"
+			val output = "./parsed_datasets/3_init/"+city+".json"
 			
 			val content = scala.io.Source.fromFile(input).mkString
 			
