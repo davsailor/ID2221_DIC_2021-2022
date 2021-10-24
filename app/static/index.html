@@ -4,9 +4,16 @@
 		<title>Italy Weather Forecast</title>
 		<link rel="shortcut icon" href="#">
 		<meta charset="UTF-8">
+		
+		<!-- import the sources of the scrpits -->
 		<script src="https://d3js.org/d3.v5.js"></script>
 		<script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
 		<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+		
+		<!-- define the style of the main elements of the document -->
+		<!-- for the legend we took ispiration from
+		---- https://tilemill-project.github.io/tilemill/docs/guides/advanced-legends/ -->
+		
 		<style type="text/css">
 			
 			h1 {
@@ -110,11 +117,13 @@
 		</header>
 		
 		<div id="main", class="row">
+			<!-- first div containing the geojson map and the current weather -->
 			<div id="current_div", class="column">
 				<h2>Italian Current Weather</h2>
 				<svg id="italy_map_current", width="700", height="650"></svg>
 			</div>
-
+			
+			<!-- second div containing the legend of colours -->
 			<div id="legend", class="intermediateColumn">
 				<h4></h4>
 				<h2>Legend</h2>
@@ -182,19 +191,23 @@
 					</div>
 				</div>
 			</div>
-						
+			
+			<!-- third div containing the geojson map and the forecast weather -->
 			<div id="forecast_div", class="column">
 				<h2>Italian Weather Forecast in 3 hours</h2>
 				<svg id="italy_map_forecast", width="700", height="650"></svg>
 			</div>
 		</div>
+
 		<script>
-			/* select the width and height of the svg where to draw the maps */
+		
+			/* *** select the width and height of the svg where to draw the maps *** */
 			var svg = d3.select("#italy_map_current"),
 				width = +svg.attr("width"),
 				height = +svg.attr("height");
 			
-			/* first guess of the parameters of the projection */
+			
+			/* *** first guess of the parameters of the projection *** */
 			var scale = 1;
 			var offset = [0, 0];
 			var projection = d3.geoMercator()
@@ -202,13 +215,15 @@
 				.translate(offset);
 			var pathBuilder = d3.geoPath(projection);
 			
-			/* creating the groups for current and forecast visualizations */
+			
+			/* *** creating the groups for current and forecast visualizations *** */
 			const cgroup = d3.select("#italy_map_current").append("g");
 			const fgroup = d3.select("#italy_map_forecast").append("g");
 			const ccgroup = d3.select("#italy_map_current").append("g");
 			const cfgroup = d3.select("#italy_map_forecast").append("g");
 			
-			/* get the geoData to draw the maps */
+			
+			/* *** get the geoData to draw the maps *** */
 			d3.json("https://raw.githubusercontent.com/openpolis/geojson-italy/master/geojson/limits_IT_regions.geojson")
 				.then(function(geoData) {
 					
@@ -249,10 +264,9 @@
 					console.log("error happened: " + error);
 				});
 			
-			/* function to draw the weather relevations and forecasts */
+			
+			/* *** function to draw the weather relevations and forecasts *** */
 			let draw = (datapoints) => {
-				
-				console.log("TRYING TO DRAW");
 				
 				/* parse the temperatures of current and forecast weather to celsius */
 				var ctc = datapoints.ctemp - 273.15;
@@ -464,43 +478,48 @@
 						var fcolor = "#ffffff";						
 				}
 				
+				/* creating the circle representing the datapoint of the current weather relevations */
 				var ccircle = ccgroup.append("circle");
 				ccircle.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
 					.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
 					.attr("r", 7)
 					.attr("fill", ccolor)
-					.attr("opacity", 0.5);
+					.attr("opacity", 0.7);
 				
+				/* setting a timeout to remove the circle (current) after 90 seconds so that the map is not very crowded */
 				setTimeout(function() {
 					console.log("removing old elements");
 					ccircle.remove();
 				}, 90000);
 				
+				/* creating the circle representing the datapoint of the weather forecast */
 				var fcircle = cfgroup.append("circle");
 				fcircle.attr("cx", projection([datapoints.lon, datapoints.lat])[0])
 					.attr("cy", projection([datapoints.lon, datapoints.lat])[1])
 					.attr("r", 7)
 					.attr("fill", fcolor)
-					.attr("opacity", 0.5);
+					.attr("opacity", 0.7);
 				
+				/* setting a timeout to remove the circle (forecast) after 90 seconds so that the map is not very crowded */
 				setTimeout(function() {
 					console.log("removing old elements");
 					fcircle.remove();
 				}, 90000);
 				
-				console.log("WE DREW THE CIRCLE");
+				console.log("datapoin drawn");
 			}
 			
-			/* create the socket where to receive the messages */
+			
+			/* *** create the socket where to receive the messages *** */
 			const socket = new WebSocket("ws://localhost:14520/ws");
 			
-			/* say hello to the server */
+			/* *** say hello to the server when the connection opens *** */
 			socket.onopen = function() {
 				console.log("connected");
 				socket.send("Hi!");
 			}
 			
-			/* define the steps to follow when new message is received */
+			/* *** define the steps to follow when new message is received *** */
 			socket.onmessage = function(event) {
 				console.log("new message");
 				try {
@@ -516,6 +535,7 @@
 					return;
 				}
 			};
+		
 		</script>
 	</body>
 </html>

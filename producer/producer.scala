@@ -1,36 +1,62 @@
+/* *** KAFKA PRODUCER *** */
 /*
-** KAFKA PRODUCER
 ** This file contains the code related to the producer of the App
 */
 
-/* define package */
+/* *** PACKAGE *** */
 package producer
 
-/*define import */
+/* *** IMPORTS *** */
+
+/*
+** general utils
+*/
 import scala.util.parsing.json._
-import sys.process._
 import scala.collection.mutable.ListBuffer
+import sys.process._
 import java.util.{Date, Properties}
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, ProducerConfig}
 import scala.util.Random
-import kafka.producer.KeyedMessage
+
+/*
+** utils to change the level of visibility of the Logger
+*/
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
-/* define the case class of the parsed data */
+/*
+** kafka-related libraries
+*/
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, ProducerConfig}
+import kafka.producer.KeyedMessage
+
+
+/* *** define useful case classes *** */
+/*
+** RECORD: class used to configure the input data
+*/
 case class Record(name: String, ts: Double, lon: Double, lat: Double, temp: Double, tempfelt: Double, pressure: Double, humidity: Double, weather: String)
 
-/* define class and objects to parse the data coming from the API call */
+
+/* *** define class and objects to parse the data coming from the API call *** */
+/*
+** PARSER: works as the abstract pattern to create the objects of all the other JSON parsers
+** MAP: parser to recognize maps inside a JSON string
+** LIST: parser to recognize lists inside a JSON string
+** STRING: parser to recognize string inside a JSON string
+** DOUBLE: parser to recognzize double inside a JSON string
+*/
 class PARSER[T] { def unapply(a: Any): Option[T] = Some(a.asInstanceOf[T]) }
 object MAP extends PARSER[Map[String, Any]]
 object LIST extends PARSER[List[Any]]
 object STRING extends PARSER[String]
 object DOUBLE extends PARSER[Double]
 	
-/* define object */
+
+/* *** MAIN OBJECT CLASS *** */
 object ScalaWeatherProducer extends App {
 	
-	/* define constants
+	/* *** define constants *** */
+	/* 
 	** BROKER_URLS: the urls of kafka producers
 	** TOEKN_KEY: the key to get access to the API call
 	** TOPIC: the topic on which Kafka will produce messages
@@ -46,16 +72,11 @@ object ScalaWeatherProducer extends App {
 	val MAX_DELAY = 200
 	
 	
-	/*
-	** change log properties
-	*/
+	/* *** change log properties *** */
   	Logger.getLogger("org").setLevel(Level.OFF)
 	
 	
-	/*
-	** call python function extractor.py
-	** to extract all the ids of Italian cities
-	*/
+	/* *** function to call python extractor.py to extract all the ids of Italian cities from OpenWeatherMapAPI database *** */
 	def callPythonExtractor(): List[String] = {
 		val buffer = ListBuffer.empty[String]
 		val output = "python3 ./../utils/italian_cities_extractor/extractor.py" ! ProcessLogger(buffer append _, stderr append _)
@@ -63,10 +84,7 @@ object ScalaWeatherProducer extends App {
 	}
 	
 	
-	/*
-	** set the properties of kafka producer
-	** instantiate a new kafka producer
-	*/
+	/* *** function to initialize kafka receiver default initialization following the guidelines of Professor and TAs *** */
 	def initProducer(brokers: String): KafkaProducer[String, String] = {
 		val props = new Properties()
 		props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers)
@@ -77,9 +95,7 @@ object ScalaWeatherProducer extends App {
 	}
 	
 	
-	/*
-	** function to call the API on a defined set of strings and for a given token
-	*/
+	/* *** function to call the API on a defined set of strings and for a given token *** */
 	def getDataFromAPI(token: String, cities: String): String = {
 		val APIurl = "http://api.openweathermap.org/data/2.5/group?id=" + cities + "&APPID=" + token
 		val data = scala.io.Source.fromURL(APIurl).mkString
@@ -87,11 +103,10 @@ object ScalaWeatherProducer extends App {
 	}
 	
 	
-	/*
-	** function to parse the data from the API call
-	** takes as input the string of the api call
-	** gives as output a structured list of Records
-	*/
+	/* *** **
+	** *** function to parse the data from the API call takes as input the string of
+	** *** the api callgives as output a structured list of Records
+	** *** */
 	def parser(string: String): List[Record] = {
 		val parsedData = for {
 			
@@ -124,11 +139,11 @@ object ScalaWeatherProducer extends App {
 	}
 	
 	
-	/*
-	** function to build a message with the relevant data for the consumer
-	** in json format, to simplify the parsing
-	** Record(name, ts, lon, lat, temp, tempfelt, pressure, humidity, weather)
-	*/
+	/* *** **
+	** *** function to build a message with the relevant data for the consumer
+	** *** in json format, to simplify the parsing
+	** *** Record(name, ts, lon, lat, temp, tempfelt, pressure, humidity, weather)
+	** *** */
 	def buildMessage(data: Record): String = {
 		val message = """{"name":""".stripMargin + data.name.toString +
 					  ""","ts":""".stripMargin + data.ts.toString +
@@ -143,7 +158,7 @@ object ScalaWeatherProducer extends App {
 	}
 
 
-	/* define main function */
+	/* *** define main function *** */
 	def main() {
 		
 		/* initialize the producer */
@@ -180,12 +195,10 @@ object ScalaWeatherProducer extends App {
 					/* send the message */
 					producer.send(message)
 
-					/* print the message for debugging */
+					/* print the message onto the log for debugging */
 					print(message + "\n")
-					
-					/* simulate an intermittent stream of data with a random delay */
-					//Thread.sleep(Random.nextInt(MAX_DELAY))
 				}
+				
 				/* insert a pause to respect the free usage constraint of the API */
 				Thread.sleep(1000)
 			}
@@ -195,6 +208,7 @@ object ScalaWeatherProducer extends App {
 		producer.close()
 	}
 	
-	/* calling the main function */
+	
+	/* *** calling the main function *** */
 	main()
 }
