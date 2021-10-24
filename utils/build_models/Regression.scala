@@ -1,10 +1,4 @@
 /* define imports */
-import scala.util.parsing.json._
-import java.util.HashMap
-import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.StringDeserializer
-import org.apache.spark.streaming.kafka._
-import kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
@@ -12,62 +6,36 @@ import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.streaming.Trigger
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 import java.util.{Date, Properties}
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, ProducerConfig}
-import scala.util.Random
-import org.apache.spark.sql.cassandra._
-import com.datastax.driver.core.{Cluster, Session}
-import com.datastax.spark.connector.SomeColumns
-import com.datastax.spark.connector._
-import com.datastax.spark.connector.streaming._
-import com.datastax.spark.connector.cql.CassandraConnector
-import com.datastax.spark.connector.japi.CassandraJavaUtil._
 
 /* define MLlib imports */
 import org.apache.spark.ml.feature.{VectorAssembler, StringIndexer, OneHotEncoderEstimator}
-import org.apache.spark.ml.regression.LinearRegression
-import org.apache.spark.mllib.evaluation.RegressionMetrics
+import org.apache.spark.ml.regression.{LinearRegression, LinearRegressionModel, GBTRegressor, GBTRegressionModel}
+import org.apache.spark.ml.evaluation.RegressionEvaluator
 
-object regressor extends App{
+object Regressor extends App{
 
 	/* function to initialize spark session with hdfs */
 	def initSession(): SparkSession = {
-		val ss = SparkSession.builder()
-					.appName("WeatherForecast")
-					.config("spark.cassandra.connection.host", "127.0.0.1")
-				    .config("spark.cassandra.connection.port", "9042")
-					.master("local[2]")
-					.getOrCreate()
+		val ss = SparkSession.builder().appName("Regressor").master("local[2]").getOrCreate()
 		import ss.implicits._
 		ss
 	}
+	
+	Logger.getLogger("org").setLevel(Level.OFF)
 
-	/* function to initialize spark context */
-	def initContext(session: SparkSession): StreamingContext = {
-		val ssc = new StreamingContext(session.sparkContext, Seconds(3))
-		ssc.checkpoint("./tmp/checkpoint")
-		ssc
-	}
+	val spark = initSession()
+	val sql = spark.sqlContext
 
-	val ss = initSession()
-	val ssc = initContext(ss)
-	val sql = ss.sqlContext
-
-	var df = sql.read
-		.format("csv")
-		.option("header", "true")
-		.option("inferSchema", "true")
-		.load("Dataset.csv")
+	var df = sql.read.format("csv").option("header", "true").option("inferSchema", "true").load("Dataset.csv")
 		
 	df = df.withColumnRenamed("temp_forecast", "label")
 
 	var weatherIndexer = new StringIndexer()
 		.setInputCol("weather")
 		.setOutputCol("weatherIndexer")
-		.setHandleInvalid("keep")
 		
 	df = weatherIndexer.fit(df).transform(df)
 
@@ -76,30 +44,38 @@ object regressor extends App{
 		.setOutputCols(Array("WeatherEncoded"))
 		
 	df = encoder.fit(df).transform(df)
-
+	
 	var assembler = new VectorAssembler()
-		.setInputCols(Array("lon", "lat", "temp", "tempfelt", "pressure", "humidity", "hour", "WeatherEncoded"))
+		.setInputCols(Array("lon", "lat", "hour", "temp", "tempfelt", "pressure", "humidity", "WeatherEncoded"))
 		.setOutputCol("features")
 		
 	df = assembler.transform(df)
+	
+	var preprocessed = df.select("features", "label")
 
-	var Array(train, test) = df.randomSplit(Array(.8, .2), 13)
+	var Array(train, test) = preprocessed.randomSplit(Array(.8, .2), 13)
 
 	var lr = new LinearRegression()
-
 	var lrmodel = lr.fit(train)
-
-	var lrPredictions = lrmodel.transform(test)
-
-	val VP = test.map( point => {
-		val prediction = lrmodel.predict(point.features)
-		(prediction, point.label)
-	})
-
-	val metrics = new RegressionMetrics(VP)
+	val results = lrmodel.evaluate(test)
 	
-	println(s"R2 = ${metrics.r2}")
-
-}	
-
-		
+	var gbt = new GBTRegressor()
+	var gbtmodel = gbt.fit(train)
+	val predictions = gbtmodel.transform(test)
+	//print(predictions.select(col("prediction")).first.getDouble(0))
+	
+	
+	val evaluator = new RegressionEvaluator()
+		.setLabelCol("label")
+		.setPredictionCol("prediction")
+		.setMetricName("rmse")
+	val rmse = evaluator.evaluate(predictions)
+	
+	print("lr R2 Error: " + results.rootMeanSquaredError + "\n")
+	print("gbt R2 Error: " + rmse + "\n")
+	
+	gbtmodel.save("gbt_temp.model")
+/*	lrmodel.save("lr_temp.model")
+*/
+	spark.close()
+}		

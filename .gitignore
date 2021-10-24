@@ -6,6 +6,7 @@ project/
 target/
 build.properties
 tmp/
+spark-warehouse/
 
 ### NODEJS NPM ###
 node_modules/

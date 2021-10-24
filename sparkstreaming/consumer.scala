@@ -8,6 +8,7 @@ package sparkstreaming
 
 /* define imports */
 import scala.util.parsing.json._
+import scala.collection.mutable.MutableList
 import java.util.HashMap
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -20,6 +21,8 @@ import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
@@ -33,10 +36,16 @@ import com.datastax.spark.connector._
 import com.datastax.spark.connector.streaming._
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector.japi.CassandraJavaUtil._
+import org.apache.spark.ml.feature.{VectorAssembler, StringIndexer, OneHotEncoderEstimator, IndexToString, VectorIndexer, StringIndexerModel}
+import org.apache.spark.ml.regression.{GBTRegressor, GBTRegressionModel}
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+import org.apache.spark.ml.classification.{DecisionTreeClassifier, DecisionTreeClassificationModel}
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+import org.apache.spark.ml.Pipeline
 
 
 /* define the case class of the parsed data */
-case class Record(name: String, ts: Double, lon: Double, lat: Double, temp: Double, tempfelt: Double, pressure: Double, humidity: Double, weather: String)
+case class Record(name: String, hour: Double, lon: Double, lat: Double, temp: Double, tempfelt: Double, pressure: Double, humidity: Double, weather: String)
 case class Result(lon: Double, lat: Double, cweather: String, fweather: String, ctemp: Double, ftemp: Double)
 
 /* define class and objects to parse the data coming from the API call */
@@ -65,7 +74,25 @@ object ScalaWeatherForecast extends App {
 				.map(_.split(":"))
 				.map{case Array(k, v) => (k.substring(1, k.length-1), v)}
 				.toMap
-		Record(newmap("name"), newmap("ts").toDouble, newmap("lon").toDouble, newmap("lat").toDouble, newmap("temp").toDouble, newmap("tempfelt").toDouble, newmap("pressure").toDouble, newmap("humidity").toDouble, newmap("weather"))
+
+		var weather = newmap("weather").toString
+		
+		if(weather == "Smoke" || weather == "Haze" || weather == "Mist") {
+			weather = "Fog"
+		}
+		
+		if(weather == "Drizzle" || weather == "Thunderstorm") {
+			weather = "Rain"
+		}
+		
+		var hour = newmap("ts").toDouble
+		hour = hour % 86400
+		if(hour < 0) {
+			hour += 86400
+		}
+		hour = scala.math.floor(hour/3600) + 2.0
+		
+		Record(newmap("name"), hour.toDouble, newmap("lon").toDouble, newmap("lat").toDouble, newmap("temp").toDouble, newmap("tempfelt").toDouble, newmap("pressure").toDouble, newmap("humidity").toDouble, weather)
 	
 	}
 	
@@ -141,7 +168,7 @@ object ScalaWeatherForecast extends App {
 		val use_ks_query = new StringBuilder("USE ").append(CASSANDRA_KS)
 		val tb_query = new StringBuilder("CREATE TABLE ")
 							.append(CASSANDRA_TB)
-							.append(" (name text, ts double, lon double, lat double, temp double, tempfelt double, pressure double, humidity double, weather text, PRIMARY KEY((name, ts)));")
+							.append(" (name text, hour double, lon double, lat double, temp double, tempfelt double, pressure double, humidity double, weather text, PRIMARY KEY((name, hour)));")
 		val session = cluster.connect(CASSANDRA_KS)
 		try {
 			cs.execute(use_ks_query.toString)
@@ -157,15 +184,110 @@ object ScalaWeatherForecast extends App {
 	/* function to save the RDD to cassandra */
 	def storeToCassandra(rdd: RDD[(String, String)]): Unit = {
 		val records = rdd.map(w => parser(w._2))
-						 .map(r => (r.name, r.ts, r.lon, r.lat, r.temp, r.tempfelt, r.pressure, r.humidity, r.weather));
-		records.saveToCassandra(CASSANDRA_KS, CASSANDRA_TB, SomeColumns("name", "ts", "lon", "lat", "temp", "tempfelt", "pressure", "humidity", "weather"))
+						 .map(r => (r.name, r.hour, r.lon, r.lat, r.temp, r.tempfelt, r.pressure, r.humidity, r.weather));
+		records.saveToCassandra(CASSANDRA_KS, CASSANDRA_TB, SomeColumns("name", "hour", "lon", "lat", "temp", "tempfelt", "pressure", "humidity", "weather"))
 	}
 	
-	/* TODO:function to predict stuff
-	** IT HAS TO BE CHANGED, THIS IS JUST TO TEST VISUALIZATION
-	*/
-	def predict(input: Record): Result = {
-		val output = Result(input.lon, input.lat, input.weather, "Clear", input.temp, input.temp+10.0)
+	/* function to load the regression model */
+	def loadRegressor(): GBTRegressionModel = {
+		val model = GBTRegressionModel.load("gbt_temp.model")
+		model
+	}
+	
+	/* function to load the classification model */
+	def loadClassifier(): DecisionTreeClassificationModel = {
+		val model = DecisionTreeClassificationModel.load("dt_weather.model")
+		model
+	}
+	
+	/* function to prepare the dataset for the regression */
+	def prepareRegression(input: DataFrame): DataFrame = {
+		var df = input
+		
+		try {
+			var weatherIndexer = new StringIndexer()
+				.setInputCol("weather")
+				.setOutputCol("weatherIndexer")
+				.setHandleInvalid("skip")
+			
+			df = weatherIndexer.fit(df).transform(df)
+			
+			var encoder = new OneHotEncoderEstimator()
+				.setInputCols(Array(weatherIndexer.getOutputCol))
+				.setOutputCols(Array("WeatherEncoded"))
+				
+			df = encoder.fit(df).transform(df)
+		} catch {
+			case ex: java.lang.IllegalArgumentException => {
+				df = df.withColumn("weather", lit(1.0))
+
+				var encoder = new OneHotEncoderEstimator()
+					.setInputCols(Array("weather"))
+					.setOutputCols(Array("WeatherEncoded"))
+					
+				df = encoder.fit(df).transform(df)
+			}
+			print("WTF!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
+		}
+		
+		var assembler = new VectorAssembler()
+			.setInputCols(Array("lon", "lat", "hour", "temp", "tempfelt", "pressure", "humidity", "WeatherEncoded"))
+			.setOutputCol("features")
+			
+		df = assembler.transform(df)	
+		df
+	}
+	
+	/* function to prepare the dataset for the classification */
+	def prepareClassification(input: DataFrame): DataFrame = {
+		var df = input
+		
+		var assembler = new VectorAssembler()
+			.setInputCols(Array("lon", "lat", "hour", "temp", "tempfelt", "pressure", "humidity", "temp_forecast", "WeatherEncoded"))
+			.setOutputCol("features")
+		
+		df = assembler.transform(df)
+		
+		df
+	}
+	
+	/* function to prepare the parser of the labels */
+	def parseLabels(input: DataFrame): IndexToString = {
+
+		val df = input.withColumnRenamed("weather", "label")
+	
+		val labelIndexer = new StringIndexer()
+			.setInputCol("label")
+			.setOutputCol("indexedLabel")
+			.fit(df)
+		
+		val labelConverter = new IndexToString()
+			.setInputCol("prediction")
+			.setOutputCol("predictedLabel")
+			.setLabels(labelIndexer.labels)
+		
+		labelConverter
+	}
+		
+	
+	/* function to predict stuff */
+	def predict(input: DataFrame, classifier: DecisionTreeClassificationModel, regressor: GBTRegressionModel): DataFrame = {
+		//print("---------------------------------------------------------------------------------------------------------------------")
+		//input.show()
+		//print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+				
+		val labelConverter = parseLabels(input)
+		
+		var df1 = prepareRegression(input)		
+		
+		val regression = regressor.transform(df1).withColumnRenamed("features", "old_features").withColumnRenamed("prediction", "temp_forecast")
+		
+		val df2 = prepareClassification(regression)
+		
+		val classification = labelConverter.transform(classifier.transform(df2))
+		
+		val output = classification.select(col("lon"), col("lat"), col("weather"), col("predictedLabel"), col("temp"), col("temp_forecast"))
+		//output.show()
 		output
 	}
 	
@@ -176,19 +298,29 @@ object ScalaWeatherForecast extends App {
 		val ssc = initContext(ss)
 		val cs = initCassandra()
 		
+		val regressor = loadRegressor()
+		val classifier = loadClassifier()
+		
 		val input = initKafkaReceiver(ssc)
 
 		input.foreachRDD(rdd => {
-			storeToCassandra(rdd)
-			rdd.foreach(data => {
-				val producer = initKafkaProducer(BROKER_URL)
-				val parsedData = parser(data._2)
-				val result = predict(parsedData)
-				val message = new ProducerRecord[String, String](SENDER_TOPIC, null, buildMessage(result))
-				print(message + "\n")
-				producer.send(message)
-				producer.close()
-			})
+			if(!rdd.isEmpty()) {
+				storeToCassandra(rdd)
+				val rdd2 = rdd.map(data => {
+					parser(data._2)
+				})
+				val results = predict(ss.createDataFrame(rdd2), classifier, regressor)
+				if(!results.isEmpty()) {
+					results.foreach(data => {
+						val producer = initKafkaProducer(BROKER_URL)
+						val result = Result(data(0).toString.toDouble, data(1).toString.toDouble, data(2).toString, data(3).toString, data(4).toString.toDouble, data(5).toString.toDouble)
+						val message = new ProducerRecord[String, String](SENDER_TOPIC, null, buildMessage(result))
+						print(message + "\n")
+						producer.send(message)
+						producer.close()
+					})
+				}
+			}
 		})
 
 		ssc.start()

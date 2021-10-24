@@ -13,6 +13,7 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.2",
   "org.apache.logging.log4j" % "log4j-core" % "2.7",
   ("com.datastax.spark" %% "spark-cassandra-connector" % "2.4.0").exclude("io.netty", "netty-handler"),
-  ("com.datastax.cassandra" % "cassandra-driver-core" % "3.1.0").exclude("io.netty", "netty-handler")
+  ("com.datastax.cassandra" % "cassandra-driver-core" % "3.1.0").exclude("io.netty", "netty-handler"),
+  "org.apache.spark" %% "spark-mllib" % "2.3.0"
 )
 
