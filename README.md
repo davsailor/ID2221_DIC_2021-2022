@@ -1,5 +1,5 @@
 # The Ultimately Simple Italian Weather Forecast
-![FORECAST_EXAMPLE](ForecastImage.jpg)
+![FORECAST_EXAMPLE](FinalDeliverables/ForecastImage.jpg)
 
 ## Index
 * [Requirements](#requirements)
@@ -21,22 +21,22 @@ This project requires:
 
 ## Prerequisites
 This application was tested with Ubuntu 20.04 LTS.
-The following environment variable must be set before running the code:
-'''bash
-export KAFKA\_HOME="/path/to/the/kafka/folder"
-export CASSANDRA\_HOME="/path/to/the/cassandra/folder"
-'''
+The following environment variable must be set before running the code:  
+```bash 
+export KAFKA\_HOME="/path/to/the/kafka/folder"  
+export CASSANDRA\_HOME="/path/to/the/cassandra/folder"  
+```
 
 ## Usage
 To run the code we can follow two paths.
 The first one (simplest):
-'''bash
+```bash
 ./start-server.sh
-'''
+```
 Visit http://localhost:14520
 
 The second one (longest):
-'''bash
+```bash
 zookeeper-server-start.sh $KAFKA_HOME/config/zookeeper.properties
 kafka-server-start.sh $KAFKA_HOME/config/server.properties
 kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic weather
@@ -45,7 +45,7 @@ cassandra -f
 cd producer && sbt run
 cd sparkstreaming && sbt run
 cd app && npm install && npm start
-'''
+```
 Visit http://localhost:14520
 
 ## Authors
