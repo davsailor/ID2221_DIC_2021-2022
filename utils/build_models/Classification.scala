@@ -45,8 +45,11 @@ object Classifier extends App{
 	val weatherIndexer = new StringIndexer()
 		.setInputCol("weather")
 		.setOutputCol("indexedWeather")
+		.fit(data)
+	
+	weatherIndexer.save("weatherIndexer.model")
 		
-	data = weatherIndexer.fit(data).transform(data)
+	data = weatherIndexer.transform(data)
 	
 	var encoder = new OneHotEncoderEstimator()
 		.setInputCols(Array(weatherIndexer.getOutputCol))
@@ -65,11 +68,15 @@ object Classifier extends App{
 	val dt = new DecisionTreeClassifier()
 		.setLabelCol("indexedLabel")
 		.setFeaturesCol("features")
+	
+	val x = weatherIndexer.labels
 
 	val labelConverter = new IndexToString()
 		.setInputCol("prediction")
 		.setOutputCol("predictedLabel")
-		.setLabels(labelIndexer.labels)
+		.setLabels(Array("Clear", "Clouds", "Fog", "Rain", "Snow"))
+	
+	labelConverter.save("labelConverter.model")
 		
 	val model1 = dt.fit(trainingData)
 	

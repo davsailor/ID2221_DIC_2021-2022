@@ -110,7 +110,7 @@ object ScalaWeatherForecast extends App {
 	
 	/* function to initialize spark context */
 	def initContext(session: SparkSession): StreamingContext = {
-		val ssc = new StreamingContext(session.sparkContext, Seconds(3))
+		val ssc = new StreamingContext(session.sparkContext, Seconds(5))
 		ssc.checkpoint("./tmp/checkpoint")
 		ssc
 	}
@@ -121,7 +121,7 @@ object ScalaWeatherForecast extends App {
 			"metadata.broker.list" -> "localhost:9092",
 			"zookeeper.connect" -> "localhost:2181",
 			"group.id" -> "kafka-spark-streaming",
-			"zookeeper.connection.timeout.ms" -> "5000")
+			"zookeeper.connection.timeout.ms" -> "15000")
 		val topics = Set(RECEIVER_TOPIC)
 		val input = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](context, conf, topics)
 		input
@@ -200,20 +200,29 @@ object ScalaWeatherForecast extends App {
 		model
 	}
 	
+	/* function to load the label indexer model */
+	def loadIndexer(): StringIndexerModel = {
+		val model = StringIndexerModel.load("weatherIndexer.model")
+		model.setHandleInvalid("skip")
+		model
+	}
+	
+	/* function to load the label converter model */
+	def loadConverter(indexer: StringIndexerModel): IndexToString = {
+		val model = IndexToString.load("labelConverter.model")
+		model.setLabels(Array("Clouds", "Clear", "Fog", "Rain", "Snow"))
+		model
+	}
+	
 	/* function to prepare the dataset for the regression */
-	def prepareRegression(input: DataFrame): DataFrame = {
+	def prepareRegression(input: DataFrame, indexer: StringIndexerModel): DataFrame = {
 		var df = input
 		
-		try {
-			var weatherIndexer = new StringIndexer()
-				.setInputCol("weather")
-				.setOutputCol("weatherIndexer")
-				.setHandleInvalid("skip")
-			
-			df = weatherIndexer.fit(df).transform(df)
+		try {			
+			df = indexer.transform(df)
 			
 			var encoder = new OneHotEncoderEstimator()
-				.setInputCols(Array(weatherIndexer.getOutputCol))
+				.setInputCols(Array(indexer.getOutputCol))
 				.setOutputCols(Array("WeatherEncoded"))
 				
 			df = encoder.fit(df).transform(df)
@@ -227,7 +236,6 @@ object ScalaWeatherForecast extends App {
 					
 				df = encoder.fit(df).transform(df)
 			}
-			print("WTF!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
 		}
 		
 		var assembler = new VectorAssembler()
@@ -247,47 +255,35 @@ object ScalaWeatherForecast extends App {
 			.setOutputCol("features")
 		
 		df = assembler.transform(df)
-		
 		df
-	}
-	
-	/* function to prepare the parser of the labels */
-	def parseLabels(input: DataFrame): IndexToString = {
-
-		val df = input.withColumnRenamed("weather", "label")
-	
-		val labelIndexer = new StringIndexer()
-			.setInputCol("label")
-			.setOutputCol("indexedLabel")
-			.fit(df)
-		
-		val labelConverter = new IndexToString()
-			.setInputCol("prediction")
-			.setOutputCol("predictedLabel")
-			.setLabels(labelIndexer.labels)
-		
-		labelConverter
 	}
 		
 	
 	/* function to predict stuff */
-	def predict(input: DataFrame, classifier: DecisionTreeClassificationModel, regressor: GBTRegressionModel): DataFrame = {
-		//print("---------------------------------------------------------------------------------------------------------------------")
-		//input.show()
-		//print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-				
-		val labelConverter = parseLabels(input)
+	def predict(input: DataFrame, classifier: DecisionTreeClassificationModel, regressor: GBTRegressionModel, indexer: StringIndexerModel, converter: IndexToString): DataFrame = {
 		
-		var df1 = prepareRegression(input)		
+		var df1 = prepareRegression(input, indexer)
+		print("----------------------------------------------DF1---------------------------------\n")
+		df1.show(20, false)		
 		
 		val regression = regressor.transform(df1).withColumnRenamed("features", "old_features").withColumnRenamed("prediction", "temp_forecast")
+		print("----------------------------------------------REGRESSION---------------------------------\n")
+		regression.show(20, false)
 		
 		val df2 = prepareClassification(regression)
+		print("----------------------------------------------DF2---------------------------------\n")
+		df2.show(20, false)
 		
-		val classification = labelConverter.transform(classifier.transform(df2))
+		val classificationRaw = classifier.transform(df2)
+		print("----------------------------------------------CLASSIFICATION RAW---------------------------------\n")
+		classificationRaw.show(20, false)
+		
+		val classification = converter.transform(classificationRaw)
+		print("----------------------------------------------CLASSIFICATION---------------------------------\n")
+		classification.show(20, false)
 		
 		val output = classification.select(col("lon"), col("lat"), col("weather"), col("predictedLabel"), col("temp"), col("temp_forecast"))
-		//output.show()
+
 		output
 	}
 	
@@ -300,6 +296,8 @@ object ScalaWeatherForecast extends App {
 		
 		val regressor = loadRegressor()
 		val classifier = loadClassifier()
+		val indexer = loadIndexer()
+		val converter = loadConverter(indexer)
 		
 		val input = initKafkaReceiver(ssc)
 
@@ -309,8 +307,9 @@ object ScalaWeatherForecast extends App {
 				val rdd2 = rdd.map(data => {
 					parser(data._2)
 				})
-				val results = predict(ss.createDataFrame(rdd2), classifier, regressor)
-				if(!results.isEmpty()) {
+				val df = ss.createDataFrame(rdd2)
+				val results = predict(df, classifier, regressor, indexer, converter)
+				if(!results.head(1).isEmpty) {
 					results.foreach(data => {
 						val producer = initKafkaProducer(BROKER_URL)
 						val result = Result(data(0).toString.toDouble, data(1).toString.toDouble, data(2).toString, data(3).toString, data(4).toString.toDouble, data(5).toString.toDouble)
